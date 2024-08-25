@@ -16,7 +16,10 @@ setup(
     entry_points={
         'apache_airflow_provider': [
             'provider_info=airflow_provider_opentelemetry.__init__:get_provider_info'
-        ]
+        ],
+        'apache_airflow_provider.connections': [
+            'otel=airflow_provider_opentelemetry.hooks.otel:OtelHook'
+        ],
     },
     classifiers=[
         'Programming Language :: Python :: 3',

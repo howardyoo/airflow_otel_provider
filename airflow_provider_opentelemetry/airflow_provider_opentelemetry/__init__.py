@@ -28,7 +28,7 @@ def get_provider_info():
         "connection_types": [
             {
                 "hook-class-name": "airflow_provider_opentelemetry.hooks.otel.OtelHook",
-                "connection-type": "opentelemetry",
+                "connection-type": "otel",
             }
         ]
     }

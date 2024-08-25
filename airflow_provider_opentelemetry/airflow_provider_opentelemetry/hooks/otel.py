@@ -120,7 +120,7 @@ class OtelHook(BaseHook, LoggingMixin):
 
     conn_name_attr = "otel_conn_id"
     default_conn_name = "otel_default"
-    conn_type = "opentelemetry"
+    conn_type = "otel"
     hook_name = "OtelHook"
 
     def __init__(self, otel_conn_id: str = "otel_default", *args, **kwargs) -> None:
