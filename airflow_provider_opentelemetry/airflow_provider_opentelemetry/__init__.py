@@ -14,16 +14,21 @@
 # KIND, either express or implied.  See the License for the
 # specific language governing permissions and limitations
 # under the License.
-from __future__ import annotations
 
-from airflow.plugins_manager import AirflowPlugin
-from airflow_providers_opentelemetry.hooks.otel import is_listener_enabled
-from airflow_providers_opentelemetry.plugins.otel_listener import get_opentelemetry_listener
-
-
-class OtelPlugin(AirflowPlugin):
-    """provide listener for OpenTelemetry."""
-
-    name = "OtelPlugin"
-    if is_listener_enabled():
-        listeners = [get_opentelemetry_listener()]
+def get_provider_info():
+    return {
+        "package-name": "airflow_provider_opentelemetry",
+        "name": "Opentelemetry provider for Airflow",
+        "description": "Opentelemetry provider to produce Spans, Metrics within the DAG code",
+        "versions": ["1.0.0"],
+        "hooks": ["airflow_provider_opentelemetry.hooks.otel.OtelHook"],
+        "operators": [],
+        "sensors": [],
+        "listeners": ["airflow_provider_opentelemetry.plugins.otel_listener.OpenTelemetryListener"],
+        "connection_types": [
+            {
+                "hook-class-name": "airflow_provider_opentelemetry.hooks.otel.OtelHook",
+                "connection-type": "opentelemetry",
+            }
+        ]
+    }

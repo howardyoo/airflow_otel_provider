@@ -22,8 +22,8 @@ import os
 from typing import TYPE_CHECKING
 
 from airflow.listeners import hookimpl
-from airflow_providers_opentelemetry.hooks.otel import OtelHook
-from airflow_providers_opentelemetry.util import get_try_number
+from airflow_provider_opentelemetry.hooks.otel import OtelHook
+from airflow_provider_opentelemetry.util import get_try_number
 
 if TYPE_CHECKING:
     from airflow.datasets import Dataset
@@ -33,11 +33,11 @@ if TYPE_CHECKING:
 from opentelemetry import trace
 from opentelemetry.trace import NonRecordingSpan, SpanContext, TraceFlags
 
-from airflow_providers_opentelemetry.hooks.otel import (
+from airflow_provider_opentelemetry.hooks.otel import (
     OTEL_CONN_ID,
     is_listener_enabled,
 )
-from airflow_providers_opentelemetry.util import (
+from airflow_provider_opentelemetry.util import (
     datetime_to_nano,
     gen_dag_span_id,
     gen_span_id,

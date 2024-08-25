@@ -1,7 +1,7 @@
 from setuptools import setup, find_packages
 
 setup(
-    name='airflow_provider_opentelemetry',
+    name='airflow-provider-opentelemetry',
     version='1.0.0',
     description='Opentelemetry provider for Airflow',
     long_description='Opentelemetry provider to produce Spans, Metrics within the DAG code',

@@ -37,11 +37,11 @@ from airflow.configuration import conf
 from airflow.exceptions import AirflowException
 from airflow.hooks.base import BaseHook
 from airflow.metrics.otel_logger import SafeOtelLogger
-from airflow_providers_opentelemetry.models import (
+from airflow_provider_opentelemetry.models import (
     EMPTY_SPAN,
     EMPTY_TIMER,
 )
-from airflow_providers_opentelemetry.util import (
+from airflow_provider_opentelemetry.util import (
     gen_span_id,
     gen_trace_id,
 )
@@ -54,7 +54,7 @@ if TYPE_CHECKING:
 
     from airflow.metrics.protocols import DeltaType, TimerProtocol
     from airflow.models import TaskInstance
-    from airflow_providers_opentelemetry.models import EmptySpan
+    from airflow_provider_opentelemetry.models import EmptySpan
 
 log = logging.getLogger(__name__)
 
