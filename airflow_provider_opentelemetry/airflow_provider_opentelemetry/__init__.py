@@ -17,7 +17,7 @@
 
 def get_provider_info():
     return {
-        "package-name": "airflow_provider_opentelemetry",
+        "package-name": "airflow-provider-opentelemetry",
         "name": "Opentelemetry provider for Airflow",
         "description": "Opentelemetry provider to produce Spans, Metrics within the DAG code",
         "versions": ["1.0.0"],
