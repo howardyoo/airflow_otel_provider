@@ -16,6 +16,7 @@
 # under the License.
 from __future__ import annotations
 
+from typing import TYPE_CHECKING
 from airflow.utils.hashlib_wrapper import md5
 from airflow.utils.state import TaskInstanceState
 from airflow import __version__ as airflow_version
