@@ -47,6 +47,8 @@ You may need to restart Airflow in order for this to take action, but a great wa
 
 ### Using Otel hook inside the DAG file
 
+#### Traces
+
 You can use `span` decorator to indicate that a particular function would be emitting its span when running.
 
 ```python
@@ -93,6 +95,8 @@ from airflow_provider_opentelemetry.hooks.otel import OtelHook
     )
 ```
 
+#### Logs
+
 You can also submit your very own log message which then can automatically converted and linked to OTEL log record within the span context.
 
 ```python
@@ -113,4 +117,26 @@ You can also submit your very own log message which then can automatically conve
         task_id="setup",
         python_callable=setup
     )
+```
+
+#### Metrics
+
+You can use otel hook to increment counter of certain actions
+```python
+    otel_hook.incr('my.counter')
+...
+    otel_hook.decr('my.counter')
+```
+
+You can use otel hook to set value of a gauge type metric
+```python
+    otel_hook.gauge('my.gauge', 12345)
+```
+
+You can use timing to record delta time
+```python
+    last_finish_time = timezone.utcnow()
+    last_duration = last_finish_time - processor.start_time
+    file_name = 'myfile.txt'
+    otel_hook.timing("my.last_duration", last_duration, tags={"file_name": file_name})
 ```
