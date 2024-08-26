@@ -121,6 +121,8 @@ You can also submit your very own log message which then can automatically conve
 
 #### Metrics
 
+> ⚠️ Metrics, unlike traces, do not have contexts (e.g. dag run, trace, etc), and have intervals for them to be reported in a fixed amount of time. Because of this, please note that if what you instrument would likely be very short and end before the set interval time (e.g. 5 seconds), those metrics will not have time to be emitted. In that case, generating span or span events may be a better way to instrument those.
+
 You can use otel hook to increment counter of certain actions
 ```python
     otel_hook.incr('my.counter')
