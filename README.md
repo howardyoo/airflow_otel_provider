@@ -1,13 +1,52 @@
 # airflow_otel_provider
-Airflow Provider for OpenTelemetry
+Airflow Provider for OpenTelemetry is an Airflow provider composed of the follwing:
+- OTEL hook : provides means for user to emit trace(spans), metrics, and logs within their DAG file
+- OTEL listener : provides alternative means to generate trace on the DAG run
+
+## How the provider works with Airflow
+[Airflow release 2.10.0](https://airflow.apache.org/docs/apache-airflow/2.10.0/release_notes.html#opentelemetry-traces-for-apache-airflow-37948) Now has OTEL traces implemented, which means that Airflow can natively emit traces on jobs and DAG runs in OTEL format. This provider works well with the version of Airflow that has this trace enabled.
+
+- If the airflow is enabled with traces (and sending trace data), provider's listener will be `disabled`, while otel hook would use the connection configuration not from its connection info, but directly from the airflor's otel configuration. That means users don't have to create redundant connection to it.
+- If the airflow is disabled with traces or does not support traces (due to of it being older version), then provider's listener will be `enabled`, and otel hook would use the connection configuration from the connections of type `otel`.
+- If the airflow does not support any traces, and connection is not defined, then provider's listener and hooks will `NOT` function.
 
 ## How to install the provider
-You can install the opentelemetry provider using pip:
+After checking out this repo in your local env, you can install the opentelemetry provider using pip.
 ```
 pip install ./airflow_provider_opentelemetry
 ```
 
 ## How to use the OTEL Hook
+
+### configuring the connection
+
+OTEL Connection would have the following parameters in its configuration UI:
+
+- OTEL endpoint URL
+- HTTP Header Name for API key
+- API Key
+- Export interval in ms(for metrics)
+- disabled
+
+#### OTEL endpoint URL
+It's the URL for emitting OTEL data (in OTLP HTTP protocol). Example: http://my-otel-endpoint:4318
+
+#### HTTP Header Name for API key (Optional)
+Sometimes, the endpoint may require you to specify header name of the API Key. In that case, you may provide one.
+
+#### API Key (Optional)
+API key that is paired with the HTTP header name
+
+#### Export internal in ms(for metrics)
+As for sending metrics data, everything is sent in timed interval (e.g. every 30 seconds). This will specify that internal
+in the unit of milliseconds.
+
+#### Disabled (Optional)
+This is currently NOT implemented (coming up in future), but when checked, this will effectively 'disable' the hook and listener.
+You may need to restart Airflow in order for this to take action, but a great way to turn it off without deleting the connection.
+
+### Using Otel hook inside the DAG file
+
 You can use `span` decorator to indicate that a particular function would be emitting its span when running.
 
 ```python
