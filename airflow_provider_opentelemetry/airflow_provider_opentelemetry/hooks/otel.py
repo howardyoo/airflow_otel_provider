@@ -22,7 +22,7 @@ import os
 import random
 from typing import TYPE_CHECKING, Any
 
-from opentelemetry import metrics, trace
+from opentelemetry import trace
 from opentelemetry.exporter.otlp.proto.http.metric_exporter import OTLPMetricExporter
 from opentelemetry.exporter.otlp.proto.http.trace_exporter import OTLPSpanExporter
 from opentelemetry.sdk.metrics import MeterProvider
@@ -121,7 +121,7 @@ class OtelHook(BaseHook, LoggingMixin):
     conn_name_attr = "otel_conn_id"
     default_conn_name = "otel_default"
     conn_type = "otel"
-    hook_name = "OtelHook"
+    hook_name = "Opentelemetry"
 
     def __init__(self, otel_conn_id: str = "otel_default", *args, **kwargs) -> None:
         super().__init__(*args, **kwargs)
@@ -133,25 +133,52 @@ class OtelHook(BaseHook, LoggingMixin):
         # 1. traces.otel_on does NOT exist or is False
         # 2. valid connection configuration (otel_default, etc.) exists.
         try:
-            conn = self._get_conn()
-            self.api_key = conn.password
-            self.url = conn.host
-            self.header_name = conn.login
-            self.interval = conn.port
+            conn_valid = False
             if is_otel_traces_enabled() is True:
                 self.otel_service = conf.get("traces", "otel_service")
-            else:
+                ssl_active = conf.getboolean("traces", "otel_ssl_active")
+                host = conf.get("traces", "otel_host")
+                port = conf.getint("traces", "otel_port")
+                protocol = "https" if ssl_active else "http"
+                self.api_key = None
+                self.url = f"{protocol}://{host}:{port}"
+                self.header_name = None
+                self.interval = "5000"
+                conn_valid = True
+
+            if is_otel_metrics_enabled() is True:
+                self.interval = conf.get("metrics", "otel_interval_milliseconds")
+
+            # if valid conn exists, then override it with the values from conn object.
+            conn = self._get_conn()
+            if conn is not None:
+                self.api_key = conn.password
+                self.url = conn.host
+                self.header_name = conn.login
+                self.interval = conn.port
                 self.otel_service = DEFAULT_SERVICE_NAME  # default service name
+                conn_valid = True
 
             if self.url is None:
                 raise AirflowException("Please provide valid URL of the OTEL endpoint.")
 
-            self.resource = Resource(attributes={HOST_NAME: get_hostname(), SERVICE_NAME: self.otel_service})
+            self.resource = Resource(
+                attributes={
+                    HOST_NAME: get_hostname(), 
+                    SERVICE_NAME: self.otel_service,
+                    "hook": "otel",
+                    "conn_id": self.otel_conn_id,
+                    "conn_valid": conn_valid,
+                    "is_otel_metrics_enabled": is_otel_metrics_enabled(),
+                    "is_otel_traces_enabled": is_otel_traces_enabled(),
+                }
+            )
             headers = {"Content-Type": "application/json"}
             if self.api_key is not None and self.header_name is not None:
                 headers[self.header_name] = self.api_key
+
             """Metrics"""
-            if is_otel_metrics_enabled() is False:
+            if conn_valid is True:
                 readers = [
                     PeriodicExportingMetricReader(
                         OTLPMetricExporter(endpoint=f"{self.url}/v1/metrics", headers=headers),
@@ -159,29 +186,40 @@ class OtelHook(BaseHook, LoggingMixin):
                     )
                 ]
                 self.meter_provider = MeterProvider(resource=self.resource, metric_readers=readers, shutdown_on_exit=False)
-            self.metric_logger = SafeOtelLogger(self.meter_provider, "airflow")
-            self.log.debug("OTEL HOOK metrics initialized.")
+                self.metric_logger = SafeOtelLogger(self.meter_provider, "airflow")
+                self.log.info("Otel metrics hook initialized.")
+
             """Traces"""
-            if is_otel_traces_enabled() is False:
+            if conn_valid is True:
                 self.provider = TracerProvider(resource=self.resource)
                 self.processor = SimpleSpanProcessor(
                     span_exporter=OTLPSpanExporter(endpoint=f"{self.url}/v1/traces", headers=headers)
                 )
                 self.provider.add_span_processor(self.processor)
-            self.log.debug("OTEL HOOK traces initialized.")
-            self.ready = True
+                self.log.info("Otel traces hook initialized.")
+
+            if conn_valid is True:
+                self.ready = True
+            else:
+                self.ready = False
 
         except Exception:
             self.ready = False
-            self.log.debug(
-                "Failed to retrieve connection using %s.",
+            self.log.error(
+                "Failed to initialize OtelHook.",
                 "Please make sure to setup the appropriate OTEL connection in Airflow and specify",
                 "its name in OTEL_CONN_ID env variable",
-                otel_conn_id,
             )
 
     def _get_conn(self):
-        conn = self.get_connection(self.otel_conn_id)
+        try:
+            conn = self.get_connection(self.otel_conn_id)
+        except Exception:
+            self.log.warn(
+                "_get_conn(self): Failed to retrieve connection using %s.",
+                self.otel_conn_id,
+            )
+            conn = None
         return conn
 
     def span(self, func):
@@ -375,22 +413,34 @@ class OtelHook(BaseHook, LoggingMixin):
         return self.ready
 
     @classmethod
+    def get_connection_form_widgets(cls) -> dict[str, Any]:
+        """Return connection widgets to add to connection form."""
+        from flask_appbuilder.fieldwidgets import BS3TextFieldWidget
+        from flask_babel import lazy_gettext
+        from wtforms import BooleanField
+
+        return {
+            "disabled": BooleanField(
+                label=lazy_gettext("Disabled"), description="Disables the connection."
+            ),
+        }
+
+    @classmethod
     def get_ui_field_behaviour(cls) -> dict[str, Any]:
         """Return custom field behaviour."""
         return {
             "hidden_fields": ["schema", "extra"],
             "relabeling": {
-                "enabled": "whether the hook is enabled or not.",
                 "host": "OTEL endpoint URL",
                 "login": "HTTP Header Name for API Key",
                 "password": "API Key",
-                "port": "Export interval in ms",
+                "port": "Export interval in ms (for metrics)",
             },
             "placeholders": {
-                "enabled": "true",
                 "host": "http://<host>:<port>",
                 "login": "(Optional) HTTP header name",
                 "password": "(Optional) API key",
                 "port": "5000",
+                "disabled": "false",
             },
         }
