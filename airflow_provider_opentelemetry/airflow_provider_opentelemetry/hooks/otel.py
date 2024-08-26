@@ -32,6 +32,9 @@ from opentelemetry.sdk.trace import TracerProvider
 from opentelemetry.sdk.trace.export import SimpleSpanProcessor
 from opentelemetry.sdk.trace.id_generator import IdGenerator
 from opentelemetry.trace import NonRecordingSpan, TraceFlags
+from opentelemetry.sdk._logs import LoggerProvider, LoggingHandler
+from opentelemetry.sdk._logs.export import SimpleLogRecordProcessor
+from opentelemetry.exporter.otlp.proto.http._log_exporter import OTLPLogExporter
 
 from airflow.configuration import conf
 from airflow.exceptions import AirflowException
@@ -159,26 +162,25 @@ class OtelHook(BaseHook, LoggingMixin):
                 self.otel_service = DEFAULT_SERVICE_NAME  # default service name
                 conn_valid = True
 
-            if self.url is None:
-                raise AirflowException("Please provide valid URL of the OTEL endpoint.")
-
-            self.resource = Resource(
-                attributes={
-                    HOST_NAME: get_hostname(), 
-                    SERVICE_NAME: self.otel_service,
-                    "hook": "otel",
-                    "conn_id": self.otel_conn_id,
-                    "conn_valid": conn_valid,
-                    "is_otel_metrics_enabled": is_otel_metrics_enabled(),
-                    "is_otel_traces_enabled": is_otel_traces_enabled(),
-                }
-            )
-            headers = {"Content-Type": "application/json"}
-            if self.api_key is not None and self.header_name is not None:
-                headers[self.header_name] = self.api_key
-
-            """Metrics"""
             if conn_valid is True:
+                self.resource = Resource(
+                    attributes={
+                        HOST_NAME: get_hostname(), 
+                        SERVICE_NAME: self.otel_service,
+                        "hook": "otel",
+                        "conn_id": self.otel_conn_id,
+                        "conn_valid": conn_valid,
+                        "is_otel_metrics_enabled": is_otel_metrics_enabled(),
+                        "is_otel_traces_enabled": is_otel_traces_enabled(),
+                    }
+                )
+                headers = {"Content-Type": "application/json"}
+                if self.api_key is not None and self.header_name is not None:
+                    headers[self.header_name] = self.api_key
+
+                if self.url and self.url is None:
+                    raise AirflowException("Please provide valid URL of the OTEL endpoint.")
+                """Metrics"""
                 readers = [
                     PeriodicExportingMetricReader(
                         OTLPMetricExporter(endpoint=f"{self.url}/v1/metrics", headers=headers),
@@ -189,19 +191,25 @@ class OtelHook(BaseHook, LoggingMixin):
                 self.metric_logger = SafeOtelLogger(self.meter_provider, "airflow")
                 self.log.info("Otel metrics hook initialized.")
 
-            """Traces"""
-            if conn_valid is True:
-                self.provider = TracerProvider(resource=self.resource)
-                self.processor = SimpleSpanProcessor(
+                """Traces"""
+                self.tracer_provider = TracerProvider(resource=self.resource)
+                self.tracer_processor = SimpleSpanProcessor(
                     span_exporter=OTLPSpanExporter(endpoint=f"{self.url}/v1/traces", headers=headers)
                 )
-                self.provider.add_span_processor(self.processor)
+                self.tracer_provider.add_span_processor(self.tracer_processor)
                 self.log.info("Otel traces hook initialized.")
 
-            if conn_valid is True:
+                """Logs"""
+                self.logger_provider = LoggerProvider(resource=self.resource)
+                self.log_processor = SimpleLogRecordProcessor(
+                    OTLPLogExporter(endpoint=f"{self.url}/v1/logs", headers=headers)
+                )
+                self.logger_provider.add_log_record_processor(self.log_processor)
+                self.logging_handler = LoggingHandler(level=logging.NOTSET, logger_provider=self.logger_provider)
+                logging.getLogger(self.__class__.__name__).addHandler(self.logging_handler)
+                self.log.info("Otel log hook initialized.")
+
                 self.ready = True
-            else:
-                self.ready = False
 
         except Exception:
             self.ready = False
@@ -278,7 +286,7 @@ class OtelHook(BaseHook, LoggingMixin):
                     resource=self.resource,
                     id_generator=AirflowOtelIdGenerator(span_id=span_id, trace_id=trace_id),
                 )
-                tracer_provider.add_span_processor(self.processor)
+                tracer_provider.add_span_processor(self.tracer_processor)
                 return tracer_provider.get_tracer(
                     instrumenting_module_name=_library_name,
                     instrumenting_library_version=library_version,
@@ -289,7 +297,7 @@ class OtelHook(BaseHook, LoggingMixin):
                     instrumenting_module_name=_library_name,
                     instrumenting_library_version=library_version,
                     schema_url=schema_url,
-                    tracer_provider=self.provider,
+                    tracer_provider=self.tracer_provider,
                 )
         raise Exception(
             "OtelHook was unable to get tracer due to it not being ready.",
@@ -407,6 +415,25 @@ class OtelHook(BaseHook, LoggingMixin):
             return tracer.start_as_current_span(name, *args, **kwargs)
         else:
             return EMPTY_SPAN
+
+    def otellog(self, severity: str, body: str):
+        # produce otel log record according to current span
+        # if there is no current span, noop span is used, hence trace id and span id should all be of 0x0
+        # which is normal.
+        # valid severity: info, debug, warning, error, fatal
+        severity = severity.upper()
+        if self.ready is True:
+            logger = logging.getLogger(self.__class__.__name__)
+            if severity == 'INFO':
+                logger.info(body)
+            elif severity == 'DEBUG':
+                logger.debug(body)
+            elif severity == 'WARNING':
+                logger.warning(body)
+            elif severity == 'ERROR':
+                logger.error(body)
+            elif severity == 'FATAL':
+                logger.fatal(body)
 
     def is_ready(self) -> bool:
         """Indicate whether hook is ready or not."""
