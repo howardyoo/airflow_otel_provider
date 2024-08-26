@@ -34,10 +34,10 @@ def _gen_id(seeds: list[str], as_int: bool = False, type: int = TRACE_ID) -> str
     return int(hash_hex, 16) if as_int else hash_hex
 
 def get_try_number(ti: TaskInstance):
-    # todo: remove when min airflow version >= 2.10.0
+    # todo: decrese by 1 when min airflow version >= 2.10.1
     from packaging.version import parse
 
-    if parse(parse(airflow_version).base_version) < parse("2.10.0"):
+    if parse(parse(airflow_version).base_version) < parse("2.10.1"):
         return ti.try_number - 1
     else:
         return ti.try_number
