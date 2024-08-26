@@ -33,14 +33,14 @@ def _gen_id(seeds: list[str], as_int: bool = False, type: int = TRACE_ID) -> str
     hash_hex = md5(seed_str).hexdigest()[type:]
     return int(hash_hex, 16) if as_int else hash_hex
 
-def get_try_number(val):
+def get_try_number(ti: TaskInstance):
     # todo: remove when min airflow version >= 2.10.0
     from packaging.version import parse
 
     if parse(parse(airflow_version).base_version) < parse("2.10.0"):
-        return val.try_number - 1
+        return ti.try_number - 1
     else:
-        return val.try_number
+        return ti.try_number
 
 def gen_trace_id(dag_run: DagRun, as_int: bool = False) -> str | int:
     if dag_run.start_date is None:
@@ -67,7 +67,7 @@ def gen_span_id(ti: TaskInstance, as_int: bool = False) -> str | int:
     """Generate span id from the task instance."""
     dag_run = ti.dag_run
     if ti.state == TaskInstanceState.SUCCESS or ti.state == TaskInstanceState.FAILED:
-        try_number = get_try_number(ti.try_number)
+        try_number = get_try_number(ti)
     else:
         try_number = ti.try_number
     return _gen_id(

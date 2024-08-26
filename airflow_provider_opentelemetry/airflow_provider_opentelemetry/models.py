@@ -72,6 +72,9 @@ class EmptySpan:
         """Add link to the span."""
         pass
 
+    def is_recording(self):
+        return False
+
     def end(self, end_time=None, *args, **kwargs) -> None:
         """End."""
         pass

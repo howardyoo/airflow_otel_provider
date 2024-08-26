@@ -20,6 +20,9 @@ setup(
         'apache_airflow_provider.connections': [
             'otel=airflow_provider_opentelemetry.hooks.otel:OtelHook'
         ],
+        'airflow.plugins': [
+            'otel_listener_plugin=airflow_provider_opentelemetry.plugins.otel:OtelPlugin'
+        ],
     },
     classifiers=[
         'Programming Language :: Python :: 3',

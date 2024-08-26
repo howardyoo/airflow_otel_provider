@@ -50,10 +50,11 @@ _opentelemetry_listener: OpenTelemetryListener | None = None
 
 class OpenTelemetryListener:
     """Produce span on dag run and task instance by listening to dag run events."""
+    default_conn_name = "otel_default"
 
     def __init__(self):
         self.listener_enabled = is_listener_enabled()
-        self.conn_id = os.getenv(OTEL_CONN_ID, "otel_default")
+        self.conn_id = os.getenv(OTEL_CONN_ID, self.default_conn_name)
         self.otel_hook = OtelHook(self.conn_id)
 
     @hookimpl
@@ -111,7 +112,7 @@ class OpenTelemetryListener:
             span.set_attribute("hostname", task_instance.hostname)
             span.set_attribute("log_url", task_instance.log_url)
             span.set_attribute("operator", str(task_instance.operator))
-            span.set_attribute("try_number", get_try_number(task_instance.try_number))
+            span.set_attribute("try_number", get_try_number(task_instance))
             span.set_attribute("job_id", task_instance.job_id)
             span.set_attribute("pool", task_instance.pool)
             span.set_attribute("queue", task_instance.queue)
