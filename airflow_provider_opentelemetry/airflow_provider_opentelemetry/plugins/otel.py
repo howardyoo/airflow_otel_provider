@@ -17,7 +17,7 @@
 from __future__ import annotations
 
 from airflow.plugins_manager import AirflowPlugin
-from airflow_provider_opentelemetry.hooks.otel import is_listener_enabled
+from airflow_provider_opentelemetry.hooks.otel import is_listener_enabled, is_otel_traces_enabled
 from airflow_provider_opentelemetry.plugins.otel_listener import get_opentelemetry_listener
 
 
@@ -25,5 +25,5 @@ class OtelPlugin(AirflowPlugin):
     """provide listener for OpenTelemetry."""
 
     name = "OtelPlugin"
-    if is_listener_enabled():
+    if is_listener_enabled() and not is_otel_traces_enabled():
         listeners = [get_opentelemetry_listener()]
