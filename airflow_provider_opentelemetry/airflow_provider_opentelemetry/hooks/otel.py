@@ -163,7 +163,7 @@ class OtelHook(BaseHook, LoggingMixin):
                 conn_valid = True
 
             if conn_valid is True:
-                self.resource = Resource(
+                self.resource = Resource.create(
                     attributes={
                         HOST_NAME: get_hostname(), 
                         SERVICE_NAME: self.otel_service,
