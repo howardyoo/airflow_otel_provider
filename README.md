@@ -18,7 +18,7 @@ pip install ./airflow_provider_opentelemetry
 
 ## How to use the OTEL Hook
 
-### configuring the connection
+### Configuring the connection
 
 OTEL Connection would have the following parameters in its configuration UI:
 
@@ -54,7 +54,7 @@ You can use `span` decorator to indicate that a particular function would be emi
 ```python
 from airflow_provider_opentelemetry.hooks.otel import OtelHook
 
-    # get otel hook first
+    # get otel hook first. Use the parameterless constructor in 2.10+ to share the server's OTLP config.
     otel_hook = OtelHook("otel_conn")
 ...
 
@@ -93,6 +93,35 @@ from airflow_provider_opentelemetry.hooks.otel import OtelHook
         task_id="setup",
         python_callable=setup
     )
+```
+
+#### How to use TracerProvider of the OtelHook
+The hook exposes a `TracerProvider` that can be used to send additional traces through the same OTLP connection. To add additional traces or to use instrumentation libraries, use the `trace_provider` property as below:
+
+```python
+from airflow_provider_opentelemetry.hooks.otel import OtelHook
+import requests
+from opentelemetry import trace
+from opentelemetry.instrumentation.requests import RequestsInstrumentor
+
+# get the Open Telemetry hook
+otel_hook = OtelHook()
+
+RequestsInstrumentor().instrument(tracer_provider=otel_hook.tracer_provider)
+
+tracer = trace.get_tracer("trace_test.tracer", tracer_provider=otel_hook.tracer_provider)
+
+@otel_hook.span
+def call_github():
+    # N.B. This is using `tracer` not `otel_hook` 
+    with tracer.start_as_current_span(name="Make GitHub call")
+        r = requests.get('https://api.github.com/events')
+
+# simple setup operator in python
+t0 = PythonOperator(
+    task_id="call_github",
+    python_callable=call_github
+)
 ```
 
 #### Logs
