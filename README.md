@@ -95,7 +95,8 @@ from airflow_provider_opentelemetry.hooks.otel import OtelHook
     )
 ```
 
-The hook exposes a `TraceProvider` that can be used to send additional traces through the same OTLP connection. To add additional traces or to use instrumentation libraries, use the `trace_provider` property as below:
+#### How to use TracerProvider of the OtelHook
+The hook exposes a `TracerProvider` that can be used to send additional traces through the same OTLP connection. To add additional traces or to use instrumentation libraries, use the `trace_provider` property as below:
 
 ```python
 from airflow_provider_opentelemetry.hooks.otel import OtelHook
