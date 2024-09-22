@@ -27,6 +27,17 @@
 Changelog
 ---------
 
+1.0.3
+.....
+
+Added external link where a button will appear in task run view that may redirect to the external OTEL backend
+using provided URL.
+
+1.0.2
+.....
+
+Bug fixes
+
 1.0.0
 .....
 

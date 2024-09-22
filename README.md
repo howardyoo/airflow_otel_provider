@@ -171,3 +171,26 @@ You can use timing to record delta time
     file_name = 'myfile.txt'
     otel_hook.timing("my.last_duration", last_duration, tags={"file_name": file_name})
 ```
+
+#### External Links
+
+##### Traces
+
+This provide can provide external links in the trace instance view.
+You may need to define the following env. variable to do so.
+
+```
+AIRFLOW_OTEL_TRACE_LINK='https://ui.honeycomb.io/demo/environments/otel-workshop/trace?trace_id={trace_id}&span={span_id}&trace_start_ts={start_date_ts}'
+```
+
+When the environment is defined, you will be able to see the following button named `OTEL Trace Link` shown under `Extra LInks` section.
+![external_link](./images/external_link.png)
+
+The above example is when you are using [Honeycomb](https://honeycomb.io) as the OTEL backend to ingest the traces.
+
+The following attributes are supported in the template string:
+- trace_id : denotes the current trace_id of the dag run
+- span_id : denotes the current span_id of the task instance
+- start_date_ts : start date (minus 10 sec) in UNIX EPOCH seconds
+- end_date_ts : end date (plus 10 sec) in UNIX EPOCH seconds
+
