@@ -19,12 +19,13 @@ def get_provider_info():
     return {
         "package-name": "airflow-provider-opentelemetry",
         "name": "Opentelemetry provider for Airflow",
-        "description": "Opentelemetry provider to produce Spans, Metrics within the DAG code",
-        "versions": ["1.0.0"],
+        "description": "Opentelemetry provider to produce Spans, Metrics, and Logs within the DAG code",
+        "versions": ["1.1.0"],
         "hooks": ["airflow_provider_opentelemetry.hooks.otel.OtelHook"],
         "operators": [],
         "sensors": [],
         "listeners": ["airflow_provider_opentelemetry.plugins.otel_listener.OpenTelemetryListener"],
+        "logging": ["airflow_provider_opentelemetry.log_handlers.otel_task_handler.OtelTaskHandler"],
         "connection_types": [
             {
                 "hook-class-name": "airflow_provider_opentelemetry.hooks.otel.OtelHook",
