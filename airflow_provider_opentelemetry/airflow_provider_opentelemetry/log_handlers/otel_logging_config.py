@@ -22,6 +22,39 @@ OpenTelemetry logging in Apache Airflow.
 """
 from __future__ import annotations
 
+import logging
+
+
+class OtelFormatter(logging.Formatter):
+    """
+    Custom formatter that provides default values for OTEL trace attributes.
+    
+    This prevents formatting errors when trace attributes are missing from log records.
+    """
+    
+    def format(self, record):
+        """
+        Format the log record, adding default values for missing OTEL attributes.
+        
+        :param record: LogRecord to format
+        :return: Formatted log string
+        """
+        # Add default values for OTEL attributes if they don't exist
+        if not hasattr(record, 'otel_trace_id'):
+            record.otel_trace_id = 'N/A'
+        if not hasattr(record, 'otel_span_id'):
+            record.otel_span_id = 'N/A'
+        if not hasattr(record, 'dag_id'):
+            record.dag_id = 'N/A'
+        if not hasattr(record, 'task_id'):
+            record.task_id = 'N/A'
+        if not hasattr(record, 'execution_date'):
+            record.execution_date = 'N/A'
+        if not hasattr(record, 'try_number'):
+            record.try_number = 0
+        
+        return super().format(record)
+
 # Default configuration template for airflow.cfg
 AIRFLOW_OTEL_LOGGING_CONFIG = """
 [logging]
@@ -47,6 +80,7 @@ OTEL_LOGGING_CONFIG = {
             'format': '[%(asctime)s] {%(filename)s:%(lineno)d} %(levelname)s - %(message)s'
         },
         'otel': {
+            '()': 'airflow_provider_opentelemetry.log_handlers.otel_logging_config.OtelFormatter',
             'format': '%(asctime)s [%(levelname)s] [trace_id=%(otel_trace_id)s span_id=%(otel_span_id)s] %(name)s - %(message)s',
             'datefmt': '%Y-%m-%d %H:%M:%S'
         },

@@ -82,59 +82,74 @@ class OtelTaskHandler(FileTaskHandler):
         header_name = None
         
         # Check if OTEL traces are enabled in Airflow config
-        if is_otel_traces_enabled():
-            ssl_active = conf.getboolean("traces", "otel_ssl_active")
-            host = conf.get("traces", "otel_host")
-            port = conf.getint("traces", "otel_port")
-            protocol = "https" if ssl_active else "http"
-            otel_url = f"{protocol}://{host}:{port}"
-            otel_service = conf.get("traces", "otel_service")
-        else:
+        try:
+            if is_otel_traces_enabled():
+                try:
+                    ssl_active = conf.getboolean("traces", "otel_ssl_active", fallback=False)
+                    host = conf.get("traces", "otel_host", fallback="localhost")
+                    port = conf.getint("traces", "otel_port", fallback=4318)
+                    protocol = "https" if ssl_active else "http"
+                    otel_url = f"{protocol}://{host}:{port}"
+                    otel_service = conf.get("traces", "otel_service", fallback=DEFAULT_SERVICE_NAME)
+                except Exception as e:
+                    log.warning(f"Error reading OTEL traces configuration: {e}")
+                    # Fall through to environment variables
+        except Exception as e:
+            log.debug(f"is_otel_traces_enabled check failed: {e}")
+        
+        if not otel_url:
             # Try to get configuration from environment or connection
             # This allows the logging provider to work independently
-            otel_url = os.getenv("OTEL_EXPORTER_OTLP_ENDPOINT")
-            otel_service = os.getenv("OTEL_SERVICE_NAME", DEFAULT_SERVICE_NAME)
-            api_key = os.getenv("OTEL_EXPORTER_OTLP_HEADERS_API_KEY")
-            header_name = os.getenv("OTEL_EXPORTER_OTLP_HEADERS_API_KEY_NAME")
+            try:
+                otel_url = os.getenv("OTEL_EXPORTER_OTLP_ENDPOINT")
+                otel_service = os.getenv("OTEL_SERVICE_NAME", DEFAULT_SERVICE_NAME)
+                api_key = os.getenv("OTEL_EXPORTER_OTLP_HEADERS_API_KEY")
+                header_name = os.getenv("OTEL_EXPORTER_OTLP_HEADERS_API_KEY_NAME")
+            except Exception as e:
+                log.warning(f"Error reading OTEL environment variables: {e}")
         
         if not otel_url:
             log.info("OTEL endpoint not configured, OpenTelemetry logging disabled")
             return
         
-        # Create resource with service information
-        resource = Resource.create(
-            attributes={
-                HOST_NAME: get_hostname(),
-                SERVICE_NAME: otel_service,
-                "component": "airflow.task.logs",
-            }
-        )
-        
-        # Setup headers for authentication if needed
-        headers = {"Content-Type": "application/json"}
-        if api_key and header_name:
-            headers[header_name] = api_key
-        
-        # Create OTLP log exporter
-        log_exporter = OTLPLogExporter(
-            endpoint=f"{otel_url}/v1/logs",
-            headers=headers
-        )
-        
-        # Create logger provider with batch processor
-        self.logger_provider = LoggerProvider(resource=resource)
-        self.logger_provider.add_log_record_processor(
-            BatchLogRecordProcessor(log_exporter)
-        )
-        
-        # Create logging handler
-        self.otel_handler = LoggingHandler(
-            level=logging.NOTSET,
-            logger_provider=self.logger_provider
-        )
-        
-        self.otel_enabled = True
-        log.info("OpenTelemetry task logging initialized successfully")
+        try:
+            # Create resource with service information
+            resource = Resource.create(
+                attributes={
+                    HOST_NAME: get_hostname(),
+                    SERVICE_NAME: otel_service,
+                    "component": "airflow.task.logs",
+                }
+            )
+            
+            # Setup headers for authentication if needed
+            headers = {"Content-Type": "application/json"}
+            if api_key and header_name:
+                headers[header_name] = api_key
+            
+            # Create OTLP log exporter
+            log_exporter = OTLPLogExporter(
+                endpoint=f"{otel_url}/v1/logs",
+                headers=headers
+            )
+            
+            # Create logger provider with batch processor
+            self.logger_provider = LoggerProvider(resource=resource)
+            self.logger_provider.add_log_record_processor(
+                BatchLogRecordProcessor(log_exporter)
+            )
+            
+            # Create logging handler
+            self.otel_handler = LoggingHandler(
+                level=logging.NOTSET,
+                logger_provider=self.logger_provider
+            )
+            
+            self.otel_enabled = True
+            log.info("OpenTelemetry task logging initialized successfully")
+        except Exception as e:
+            log.error(f"Failed to initialize OpenTelemetry logging components: {e}")
+            self.otel_enabled = False
 
     def set_context(self, ti: TaskInstance, *, identifier: str | None = None):
         """
@@ -150,7 +165,10 @@ class OtelTaskHandler(FileTaskHandler):
             logger = logging.getLogger(f"airflow.task.{ti.dag_id}.{ti.task_id}")
             
             # Remove any existing OTEL handlers to avoid duplicates
-            logger.handlers = [h for h in logger.handlers if not isinstance(h, LoggingHandler)]
+            # Use proper removeHandler() method to avoid breaking other handlers
+            handlers_to_remove = [h for h in logger.handlers if isinstance(h, LoggingHandler)]
+            for handler in handlers_to_remove:
+                logger.removeHandler(handler)
             
             # Add OTEL handler with trace context
             logger.addHandler(self.otel_handler)
@@ -195,7 +213,10 @@ class OtelTaskHandler(FileTaskHandler):
                 return True
         
         # Remove any existing trace context filters
-        logger.filters = [f for f in logger.filters if not isinstance(f, TraceContextFilter)]
+        # Use proper removeFilter() method to avoid breaking other filters
+        filters_to_remove = [f for f in logger.filters if isinstance(f, TraceContextFilter)]
+        for filter_obj in filters_to_remove:
+            logger.removeFilter(filter_obj)
         
         # Add new trace context filter
         logger.addFilter(TraceContextFilter(trace_id_str, span_id_str, ti))
