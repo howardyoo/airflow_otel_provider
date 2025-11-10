@@ -35,6 +35,15 @@ from opentelemetry.trace import NonRecordingSpan, TraceFlags
 from opentelemetry.sdk._logs import LoggerProvider, LoggingHandler
 from opentelemetry.sdk._logs.export import SimpleLogRecordProcessor
 from opentelemetry.exporter.otlp.proto.http._log_exporter import OTLPLogExporter
+from airflow_provider_opentelemetry.util import (
+    is_otel_traces_enabled, 
+    is_otel_metrics_enabled, 
+    is_listener_enabled,
+    OTEL_CONN_ID, 
+    DEFAULT_SERVICE_NAME,
+    gen_span_id,
+    gen_trace_id,
+)
 
 from airflow.configuration import conf
 from airflow.exceptions import AirflowException
@@ -43,10 +52,6 @@ from airflow.metrics.otel_logger import SafeOtelLogger
 from airflow_provider_opentelemetry.models import (
     EMPTY_SPAN,
     EMPTY_TIMER,
-)
-from airflow_provider_opentelemetry.util import (
-    gen_span_id,
-    gen_trace_id,
 )
 from airflow.utils.log.logging_mixin import LoggingMixin
 from airflow.utils.net import get_hostname
@@ -60,25 +65,6 @@ if TYPE_CHECKING:
     from airflow_provider_opentelemetry.models import EmptySpan
 
 log = logging.getLogger(__name__)
-
-
-def is_otel_traces_enabled() -> bool:
-    """Check whether either core otel traces is enabled."""
-    return conf.has_option("traces", "otel_on") and conf.getboolean("traces", "otel_on") is True
-
-
-def is_otel_metrics_enabled() -> bool:
-    """Check whether either core otel metrics is enabled."""
-    return conf.has_option("metrics", "otel_on") and conf.getboolean("metrics", "otel_on") is True
-
-
-def is_listener_enabled() -> bool:
-    """Check whether otel listener is disabled."""
-    return os.getenv("OTEL_LISTENER_DISABLED", "false").lower() == "false"
-
-
-OTEL_CONN_ID = "OTEL_CONN_ID"
-DEFAULT_SERVICE_NAME = "Airflow"
 
 
 class AirflowOtelIdGenerator(IdGenerator):

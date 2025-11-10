@@ -22,7 +22,19 @@ OpenTelemetry logging in Apache Airflow.
 """
 from __future__ import annotations
 
+from copy import deepcopy
+from pydantic.v1.utils import deep_update
+from airflow.config_templates.airflow_local_settings import DEFAULT_LOGGING_CONFIG
 import logging
+
+
+# Try to import SecretsMasker for newer Airflow versions
+# This maintains backward compatibility with older versions that don't have it
+try:
+    from airflow.utils.log.secrets_masker import SecretsMasker
+    SECRETS_MASKER_AVAILABLE = True
+except ImportError:
+    SECRETS_MASKER_AVAILABLE = False
 
 
 class OtelFormatter(logging.Formatter):
@@ -71,69 +83,90 @@ logging_config_class = airflow_provider_opentelemetry.log_handlers.otel_logging_
 # OTEL_EXPORTER_OTLP_HEADERS_API_KEY = your-api-key-here
 """
 
-# Python logging configuration dict for OTEL integration
-OTEL_LOGGING_CONFIG = {
-    'version': 1,
-    'disable_existing_loggers': False,
-    'formatters': {
-        'airflow': {
-            'format': '[%(asctime)s] {%(filename)s:%(lineno)d} %(levelname)s - %(message)s'
+
+def _build_otel_logging_config():
+    """
+    Build the OTEL logging configuration dynamically.
+    
+    This function builds the configuration at runtime to handle optional
+    components like SecretsMasker that may not be available in older
+    Airflow versions.
+    
+    :return: Logging configuration dictionary
+    """
+    config = deep_update(deepcopy(DEFAULT_LOGGING_CONFIG),
+    {
+        'version': 1,
+        'disable_existing_loggers': False,
+        'formatters': {
+            'airflow': {
+                'format': '[%(asctime)s] {%(filename)s:%(lineno)d} %(levelname)s - %(message)s'
+            },
+            'otel': {
+                '()': 'airflow_provider_opentelemetry.log_handlers.otel_logging_config.OtelFormatter',
+                'format': '%(asctime)s [%(levelname)s] [trace_id=%(otel_trace_id)s span_id=%(otel_span_id)s] %(name)s - %(message)s',
+                'datefmt': '%Y-%m-%d %H:%M:%S'
+            },
         },
-        'otel': {
-            '()': 'airflow_provider_opentelemetry.log_handlers.otel_logging_config.OtelFormatter',
-            'format': '%(asctime)s [%(levelname)s] [trace_id=%(otel_trace_id)s span_id=%(otel_span_id)s] %(name)s - %(message)s',
-            'datefmt': '%Y-%m-%d %H:%M:%S'
+        'handlers': {
+            'console': {
+                'class': 'airflow.utils.log.logging_mixin.RedirectStdHandler',
+                'formatter': 'airflow',
+                'stream': 'sys.stdout',
+            },
+            'task': {
+                'class': 'airflow_provider_opentelemetry.log_handlers.otel_task_handler.OtelTaskHandler',
+                'formatter': 'airflow',
+                'base_log_folder': '{{ AIRFLOW_HOME }}/logs',
+            },
+            'processor': {
+                'class': 'airflow.utils.log.file_processor_handler.FileProcessorHandler',
+                'formatter': 'airflow',
+                'base_log_folder': '{{ AIRFLOW_HOME }}/logs',
+                'filename_template': '{{ filename }}.log',
+            },
         },
-    },
-    'filters': {
-        'mask_secrets': {
-            '()': 'airflow.utils.log.secrets_masker.SecretsMasker',
+        'loggers': {
+            'airflow.processor': {
+                'handlers': ['processor'],
+                'level': 'INFO',
+                'propagate': False,
+            },
+            'airflow.task': {
+                'handlers': ['task'],
+                'level': 'INFO',
+                'propagate': False,
+                'qualname': 'airflow.task',
+            },
+            'flask_appbuilder': {
+                'handlers': ['console'],
+                'level': 'WARNING',
+                'propagate': False,
+            },
         },
-    },
-    'handlers': {
-        'console': {
-            'class': 'airflow.utils.log.logging_mixin.RedirectStdHandler',
-            'formatter': 'airflow',
-            'stream': 'sys.stdout',
-            'filters': ['mask_secrets'],
-        },
-        'task': {
-            'class': 'airflow_provider_opentelemetry.log_handlers.otel_task_handler.OtelTaskHandler',
-            'formatter': 'airflow',
-            'base_log_folder': '{{ AIRFLOW_HOME }}/logs',
-            'filters': ['mask_secrets'],
-        },
-        'processor': {
-            'class': 'airflow.utils.log.file_processor_handler.FileProcessorHandler',
-            'formatter': 'airflow',
-            'base_log_folder': '{{ AIRFLOW_HOME }}/logs',
-            'filename_template': '{{ filename }}.log',
-            'filters': ['mask_secrets'],
-        },
-    },
-    'loggers': {
-        'airflow.processor': {
-            'handlers': ['processor'],
-            'level': 'INFO',
-            'propagate': False,
-        },
-        'airflow.task': {
-            'handlers': ['task'],
-            'level': 'INFO',
-            'propagate': False,
-            'qualname': 'airflow.task',
-        },
-        'flask_appbuilder': {
+        'root': {
             'handlers': ['console'],
-            'level': 'WARNING',
-            'propagate': False,
+            'level': 'INFO',
         },
-    },
-    'root': {
-        'handlers': ['console'],
-        'level': 'INFO',
-    },
-}
+    })
+    
+    # Add SecretsMasker filter if available (newer Airflow versions)
+    if SECRETS_MASKER_AVAILABLE:
+        config['filters'] = {
+            'mask_secrets': {
+                '()': 'airflow.utils.log.secrets_masker.SecretsMasker',
+            },
+        }
+        # Add filter to all handlers
+        config['handlers']['console']['filters'] = ['mask_secrets']
+        config['handlers']['task']['filters'] = ['mask_secrets']
+        config['handlers']['processor']['filters'] = ['mask_secrets']
+    
+    return config
+
+
+# Build the configuration at module load time
+OTEL_LOGGING_CONFIG = _build_otel_logging_config()
 
 
 def get_otel_logging_config():

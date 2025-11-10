@@ -30,12 +30,13 @@ from opentelemetry.sdk.resources import HOST_NAME, SERVICE_NAME, Resource
 from airflow.configuration import conf
 from airflow.utils.log.file_task_handler import FileTaskHandler
 from airflow.utils.net import get_hostname
-from airflow_provider_opentelemetry.hooks.otel import (
+from airflow_provider_opentelemetry.util import (
     is_otel_traces_enabled,
     DEFAULT_SERVICE_NAME,
     OTEL_CONN_ID,
+    gen_trace_id,
+    gen_span_id,
 )
-from airflow_provider_opentelemetry.util import gen_trace_id, gen_span_id
 
 if TYPE_CHECKING:
     from airflow.models import TaskInstance

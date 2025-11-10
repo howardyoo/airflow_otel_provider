@@ -32,7 +32,7 @@ import random
 
 from airflow import DAG
 from airflow.operators.python import PythonOperator
-from airflow.decorators import task
+from airflow.decorators import task, dag
 
 try:
     from airflow_provider_opentelemetry.hooks.otel import OtelHook
@@ -231,11 +231,11 @@ with DAG(
     'example_otel_logging',
     default_args=default_args,
     description='Example DAG demonstrating OpenTelemetry Logging Provider',
-    schedule_interval=None,  # Manual trigger only
+    schedule=None,  # Manual trigger only
     start_date=datetime(2024, 1, 1),
     catchup=False,
     tags=['example', 'otel', 'logging'],
-) as dag:
+) as example_dag:
     
     # Task 1: Basic logging
     t1 = PythonOperator(
@@ -270,7 +270,7 @@ with DAG(
     dag_id='example_otel_logging_taskflow',
     default_args=default_args,
     description='Example DAG using TaskFlow API with OTEL Logging',
-    schedule_interval=None,
+    schedule=None,
     start_date=datetime(2024, 1, 1),
     catchup=False,
     tags=['example', 'otel', 'logging', 'taskflow'],

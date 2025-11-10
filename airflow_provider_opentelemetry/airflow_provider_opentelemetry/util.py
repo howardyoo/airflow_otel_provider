@@ -17,6 +17,8 @@
 from __future__ import annotations
 
 from typing import TYPE_CHECKING
+import os
+from airflow.configuration import conf
 from airflow.utils.hashlib_wrapper import md5
 from airflow.utils.state import TaskInstanceState
 from airflow.models.taskinstancekey import TaskInstanceKey
@@ -28,11 +30,29 @@ if TYPE_CHECKING:
 TRACE_ID = 0
 NO_TRACE_ID = 1
 SPAN_ID = 16
+OTEL_CONN_ID = "OTEL_CONN_ID"
+DEFAULT_SERVICE_NAME = "Airflow"
+
+def is_otel_traces_enabled() -> bool:
+    """Check whether either core otel traces is enabled."""
+    return conf.has_option("traces", "otel_on") and conf.getboolean("traces", "otel_on") is True
+
+
+def is_otel_metrics_enabled() -> bool:
+    """Check whether either core otel metrics is enabled."""
+    return conf.has_option("metrics", "otel_on") and conf.getboolean("metrics", "otel_on") is True
+
+
+def is_listener_enabled() -> bool:
+    """Check whether otel listener is disabled."""
+    return os.getenv("OTEL_LISTENER_DISABLED", "false").lower() == "false"
+
 
 def _gen_id(seeds: list[str], as_int: bool = False, type: int = TRACE_ID) -> str | int:
     seed_str = "_".join(seeds).encode("utf-8")
     hash_hex = md5(seed_str).hexdigest()[type:]
     return int(hash_hex, 16) if as_int else hash_hex
+
 
 def get_try_number(ti: TaskInstance):
     # todo: decrese by 1 when min airflow version >= 2.10.1
@@ -42,6 +62,7 @@ def get_try_number(ti: TaskInstance):
         return ti.try_number - 1
     else:
         return ti.try_number
+
 
 def gen_trace_id(dag_run: DagRun, as_int: bool = False) -> str | int:
     if dag_run.start_date is None:
@@ -53,6 +74,7 @@ def gen_trace_id(dag_run: DagRun, as_int: bool = False) -> str | int:
         as_int,
     )
 
+
 def gen_trace_id_from_ti_key(ti_key: TaskInstanceKey, start_date, as_int: bool = False) -> str | int:
     if start_date is None:
         return NO_TRACE_ID
@@ -61,6 +83,7 @@ def gen_trace_id_from_ti_key(ti_key: TaskInstanceKey, start_date, as_int: bool =
         [ti_key.dag_id, str(ti_key.run_id), str(start_date.timestamp())],
         as_int,
     )
+
 
 def gen_span_id_from_ti_key(ti_key: TaskInstanceKey, as_int: bool = False) -> str | int:
     from packaging.version import parse
@@ -76,6 +99,7 @@ def gen_span_id_from_ti_key(ti_key: TaskInstanceKey, as_int: bool = False) -> st
         SPAN_ID,
     )
 
+
 def gen_dag_span_id(dag_run: DagRun, as_int: bool = False) -> str | int:
     """Generate dag's root span id using dag_run."""
     if dag_run.start_date is None:
@@ -86,6 +110,7 @@ def gen_dag_span_id(dag_run: DagRun, as_int: bool = False) -> str | int:
         as_int,
         SPAN_ID,
     )
+
 
 def gen_span_id(ti: TaskInstance, as_int: bool = False) -> str | int:
     from packaging.version import parse
@@ -104,6 +129,7 @@ def gen_span_id(ti: TaskInstance, as_int: bool = False) -> str | int:
         as_int,
         SPAN_ID,
     )
+
 
 def datetime_to_nano(datetime) -> int:
     """Convert datetime to nanoseconds."""

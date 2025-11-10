@@ -234,11 +234,28 @@ otel_ssl_active = False
 otel_service = Airflow
 ```
 
+**Alternative: Using Environment Variables for logging_config_class**
+
+Instead of modifying `airflow.cfg`, you can set the logging configuration class using an environment variable. This is particularly useful for containerized deployments:
+
+```bash
+export AIRFLOW__LOGGING__LOGGING_CONFIG_CLASS=airflow_provider_opentelemetry.log_handlers.otel_logging_config.OTEL_LOGGING_CONFIG
+export AIRFLOW__TRACES__OTEL_ON=True
+export AIRFLOW__TRACES__OTEL_HOST=localhost
+export AIRFLOW__TRACES__OTEL_PORT=4318
+export AIRFLOW__TRACES__OTEL_SSL_ACTIVE=False
+export AIRFLOW__TRACES__OTEL_SERVICE=Airflow
+```
+
 #### Option 2: Using Environment Variables
 
 Set these environment variables before starting Airflow:
 
 ```bash
+# Set the logging config class
+export AIRFLOW__LOGGING__LOGGING_CONFIG_CLASS=airflow_provider_opentelemetry.log_handlers.otel_logging_config.OTEL_LOGGING_CONFIG
+
+# Set OTEL endpoint configuration
 export OTEL_EXPORTER_OTLP_ENDPOINT=http://localhost:4318
 export OTEL_SERVICE_NAME=Airflow
 
@@ -247,12 +264,7 @@ export OTEL_EXPORTER_OTLP_HEADERS_API_KEY_NAME=x-api-key
 export OTEL_EXPORTER_OTLP_HEADERS_API_KEY=your-api-key-here
 ```
 
-Then update `airflow.cfg`:
-
-```ini
-[logging]
-logging_config_class = airflow_provider_opentelemetry.log_handlers.otel_logging_config.OTEL_LOGGING_CONFIG
-```
+**Note:** With this approach, you don't need to modify `airflow.cfg` at all. All configuration is done through environment variables.
 
 #### Option 3: Using OTEL Connection (Fallback)
 
@@ -447,15 +459,6 @@ Then in `airflow.cfg`:
 ```ini
 [logging]
 logging_config_class = custom_logging_config.get_custom_otel_logging_config
-```
-
-#### Filtering Sensitive Data
-
-The logging provider integrates with Airflow's secrets masker:
-
-```python
-# Sensitive data is automatically masked in logs
-logging.info(f"Processing with API key: {api_key}")  # API key will be masked
 ```
 
 ### Examples
